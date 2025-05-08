@@ -458,229 +458,361 @@
 {% block head_block %}
 {{ block.super }}
 <script>
-// Updated WebSocket connection code for auction_detail.html
-
-let bidSocket;
-let auctionEndCountdown;
-let auctionStartCountdown;
-let hasReloaded = false; // Flag to prevent multiple reloads
-let lastBidTimestamp = null; // Store the timestamp of the last processed bid
-let reconnectAttempts = 0;
-const maxReconnectAttempts = 5;
-
-function setupWebSocket() {
-    if (bidSocket) {
-        bidSocket.close();
-    }
-
-    // Determine WebSocket URL based on current protocol
-    const wsScheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
-    const wsPath = wsScheme + window.location.host + '/ws/auction/{{ luxury_shoe.id }}/';
-
-    console.log('Connecting to WebSocket at:', wsPath);
+    let bidSocket;
+    let auctionEndCountdown;
+    let auctionStartCountdown;
+    let hasReloaded = false; // Flag to prevent multiple reloads
     
-    try {
+    function setupWebSocket() {
+        if (bidSocket) {
+            bidSocket.close();
+        }
+        
+        // Determine WebSocket URL based on current protocol
+        const wsScheme = window.location.protocol === 'https:' ? 'wss://' : 'ws://';
+        const wsPath = wsScheme + window.location.host + '/ws/auction/{{ luxury_shoe.id }}/';
+        
+        console.log('Connecting to WebSocket at:', wsPath);
         bidSocket = new WebSocket(wsPath);
-
+        
         bidSocket.onopen = function(e) {
             console.log('WebSocket connection established');
-            reconnectAttempts = 0; // Reset reconnect attempts on successful connection
-            
-            // Send a ping message to verify connection
-            bidSocket.send(JSON.stringify({
-                'action': 'ping',
-                'message': 'Connection test'
-            }));
         };
-
+        
         bidSocket.onmessage = function(e) {
-            try {
-                const data = JSON.parse(e.data);
-                console.log('WebSocket message received:', data);
-
-                // Handle error messages
-                if (data.error) {
-                    console.error('WebSocket error from server:', data.error);
-                    return;
-                }
-
-                // Handle bid updates
-                if (data.bid) {
-                    // Check if this bid is new based on timestamp
-                    if (!lastBidTimestamp || data.bid.timestamp !== lastBidTimestamp) {
-                        lastBidTimestamp = data.bid.timestamp;
-                        console.log('New bid received, triggering page reload');
-                        if (!hasReloaded) {
-                            hasReloaded = true;
-                            location.reload(); // Reload the page for all users
-                        }
-                    }
-                }
-
-                // Handle auction end
-                if (data.winner !== undefined) {
-                    handleAuctionEnd(data.winner, data.amount);
-                }
-
-                // Handle auction details updates
-                if (data.auction_details) {
-                    console.log('Received auction details:', data.auction_details);
-                    // Update UI with auction details if needed
-                }
-            } catch (error) {
-                console.error('Error processing WebSocket message:', error, e.data);
-            }
-        };
-
-        bidSocket.onclose = function(e) {
-            console.log('WebSocket connection closed with code:', e.code);
+            const data = JSON.parse(e.data);
+            console.log('WebSocket message received:', data);
             
-            // Attempt to reconnect with exponential backoff
-            if (reconnectAttempts < maxReconnectAttempts) {
-                reconnectAttempts++;
-                const delay = Math.min(1000 * Math.pow(2, reconnectAttempts), 30000); // Max 30 seconds
-                console.log(`Attempting to reconnect in ${delay/1000} seconds... (Attempt ${reconnectAttempts})`);
-                setTimeout(setupWebSocket, delay);
-            } else {
-                console.error('Maximum reconnection attempts reached. Please refresh the page manually.');
-                // Display a message to the user that they need to refresh the page
-                const auctionInfo = document.querySelector('.auction-info');
-                if (auctionInfo) {
-                    const connectionError = document.createElement('div');
-                    connectionError.className = 'loser-notice';
-                    connectionError.innerHTML = 'Connection to the auction server lost. Please refresh the page to reconnect.';
-                    auctionInfo.prepend(connectionError);
+            // Handle bid updates
+            if (data.bid) {
+                handleBidUpdate(data.bid);
+                // Refresh page if bid is from another user
+                if (data.bid.user !== "{{ user.username }}" && !hasReloaded) {
+                    console.log('Bid from another user, reloading page');
+                    hasReloaded = true;
+                    location.reload();
                 }
             }
+            
+            // Handle auction end
+            if (data.winner !== undefined) {
+                handleAuctionEnd(data.winner, data.amount);
+            }
+            
+            // Handle auction details updates
+            if (data.auction_details) {
+                console.log('Received auction details:', data.auction_details);
+            }
         };
-
-        bidSocket.onerror = function(e) {
-            console.error('WebSocket error occurred:', e);
-            // Don't close the socket here, let the onclose handler deal with reconnection
-        };
-    } catch (error) {
-        console.error('Error setting up WebSocket:', error);
-        // Try to reconnect after a delay
-        setTimeout(setupWebSocket, 5000);
-    }
-}
-
-function handleAuctionEnd(winner, amount) {
-    if (auctionEndCountdown) {
-        clearInterval(auctionEndCountdown);
-    }
-    if (auctionStartCountdown) {
-        clearInterval(auctionStartCountdown);
-    }
-
-    const statusContainer = document.querySelector('.auction-status');
-    const countdownContainer = document.querySelector('.auction-countdown');
-    const bidForm = document.querySelector('.bid-form');
-
-    if (statusContainer) {
-        statusContainer.innerHTML = `
-            <div class="status-indicator status-ended"></div>
-            <span>Auction Ended</span>
-        `;
-    }
-
-    if (countdownContainer) {
-        countdownContainer.innerHTML = `
-            <div class="auction-ended">This auction has ended.</div>
-        `;
-    }
-
-    if (bidForm) {
-        bidForm.remove();
-    }
-
-    const noticeContainer = document.createElement('div');
-    if (winner) {
-        noticeContainer.className = winner === "{{ user.username }}" ? 'winner-notice' : 'loser-notice';
-        noticeContainer.innerHTML = winner === "{{ user.username }}" ?
-            `Congratulations! You won this auction with a bid of ₹${amount.toFixed(2)}!
-             <p>Proceed to purchase the item now.</p>
-             <a href="{% url 'auctions:buy_now' luxury_shoe_id=luxury_shoe.id %}" class="bid-button">Buy Now</a>` :
-            `This auction was won by ${winner} with a bid of ₹${amount.toFixed(2)}.`;
-    } else {
-        noticeContainer.className = 'loser-notice';
-        noticeContainer.innerHTML = 'This auction ended without any bids.';
-    }
-
-    const auctionInfo = document.querySelector('.auction-info');
-    if (auctionInfo) {
-        const existingNotice = auctionInfo.querySelector('.winner-notice, .loser-notice');
-        if (existingNotice) {
-            existingNotice.remove();
-        }
-        auctionInfo.insertBefore(noticeContainer, auctionInfo.querySelector('.highest-bid'));
-    }
-
-    if (bidSocket) {
-        bidSocket.close();
-    }
-}
-
-// Add a simple ping function to keep the connection alive
-function pingServer() {
-    if (bidSocket && bidSocket.readyState === WebSocket.OPEN) {
-        bidSocket.send(JSON.stringify({
-            'action': 'ping',
-            'timestamp': new Date().toISOString()
-        }));
-        console.log('Ping sent to server');
-    }
-}
-
-// Call this function periodically to keep the connection alive
-setInterval(pingServer, 30000); // Every 30 seconds
-
-document.addEventListener('DOMContentLoaded', function() {
-    // Rest of your DOMContentLoaded code...
     
-    const now = new Date();
-    const auctionStart = new Date("{{ luxury_shoe.auction_start|date:'c' }}");
-    const auctionEnd = new Date("{{ luxury_shoe.auction_end|date:'c' }}");
+        bidSocket.onclose = function(e) {
+            console.log('WebSocket connection closed');
+            // Try to reconnect after a delay
+            setTimeout(setupWebSocket, 5000);
+        };
+        
+        bidSocket.onerror = function(e) {
+            console.error('WebSocket error:', e);
+            bidSocket.close();
+        };
+    }
 
-    console.log('Auction times:', {
-        now: now.toISOString(),
-        auctionStart: auctionStart.toISOString(),
-        auctionEnd: auctionEnd.toISOString()
-    });
+    function handleBidUpdate(bid) {
+        console.log('Handling bid update:', bid);
+        
+        // Update highest bid display
+        const highestBidInfo = document.querySelector('.highest-bid-info');
+        if (highestBidInfo) {
+            highestBidInfo.innerHTML = `
+                <span class="highest-bidder">${bid.user}</span>
+                <span class="highest-amount">₹${parseFloat(bid.amount).toFixed(2)}</span>
+            `;
+            highestBidInfo.classList.add('bid-update');
+            setTimeout(() => {
+                highestBidInfo.classList.remove('bid-update');
+            }, 500);
+        } else {
+            console.error('Highest bid info element not found');
+        }
+        
+        // Update bid history table
+        const bidHistoryBody = document.querySelector('#bid-history-body');
+        if (bidHistoryBody) {
+            // Create new row for bid history
+            const newRow = document.createElement('tr');
+            newRow.innerHTML = `
+                <td>${bid.user}</td>
+                <td>₹${parseFloat(bid.amount).toFixed(2)}</td>
+                <td>${new Date(bid.timestamp).toLocaleString()}</td>
+            `;
+            newRow.classList.add('bid-update');
+            
+            // Insert at the top of the table
+            bidHistoryBody.prepend(newRow);
+            
+            // Remove animation after a delay
+            setTimeout(() => {
+                newRow.classList.remove('bid-update');
+            }, 500);
+            
+            // Remove "no bids yet" message if it exists
+            const noBidsMessage = document.querySelector('.no-bids-yet');
+            if (noBidsMessage) {
+                noBidsMessage.remove();
+            }
+        } else {
+            console.error('Bid history body element not found');
+        }
+        
+        // Show notification for new bid
+        showBidNotification(bid);
+        
+        // Update the minimum bid value in the form
+        const bidInput = document.querySelector('#id_amount');
+        if (bidInput) {
+            const nextMinBid = parseFloat(bid.amount) + 0.01;
+            bidInput.setAttribute('min', nextMinBid);
+            bidInput.setAttribute('placeholder', `Min bid: ₹${nextMinBid.toFixed(2)}`);
+            
+            // If the current value is less than the new minimum, update it
+            if (parseFloat(bidInput.value) < nextMinBid) {
+                bidInput.value = nextMinBid.toFixed(2);
+            }
+        }
+    }
 
-    if (isNaN(auctionStart.getTime()) || isNaN(auctionEnd.getTime())) {
-        console.error('Invalid auction start or end time');
-        document.querySelector('.auction-countdown-timer').innerHTML = `
-            <div class="countdown-error">Error: Invalid auction time</div>
+    function handleAuctionEnd(winner, amount) {
+        if (auctionEndCountdown) {
+            clearInterval(auctionEndCountdown);
+        }
+        if (auctionStartCountdown) {
+            clearInterval(auctionStartCountdown);
+        }
+        
+        const statusContainer = document.querySelector('.auction-status');
+        const countdownContainer = document.querySelector('.auction-countdown');
+        const bidForm = document.querySelector('.bid-form');
+        
+        if (statusContainer) {
+            statusContainer.innerHTML = `
+                <div class="status-indicator status-ended"></div>
+                <span>Auction Ended</span>
+            `;
+        }
+        
+        if (countdownContainer) {
+            countdownContainer.innerHTML = `
+                <div class="auction-ended">This auction has ended.</div>
+            `;
+        }
+        
+        if (bidForm) {
+            bidForm.remove();
+        }
+        
+        const noticeContainer = document.createElement('div');
+        if (winner) {
+            noticeContainer.className = winner === "{{ user.username }}" ? 'winner-notice' : 'loser-notice';
+            noticeContainer.innerHTML = winner === "{{ user.username }}" ?
+                `Congratulations! You won this auction with a bid of ₹${amount.toFixed(2)}!
+                 <p>Proceed to purchase the item now.</p>
+                 <a href="{% url 'auctions:buy_now' luxury_shoe_id=luxury_shoe.id %}" class="bid-button">Buy Now</a>` :
+                `This auction was won by ${winner} with a bid of ₹${amount.toFixed(2)}.`;
+        } else {
+            noticeContainer.className = 'loser-notice';
+            noticeContainer.innerHTML = 'This auction ended without any bids.';
+        }
+        
+        const auctionInfo = document.querySelector('.auction-info');
+        if (auctionInfo) {
+            auctionInfo.insertBefore(noticeContainer, auctionInfo.querySelector('.highest-bid'));
+        }
+        
+        if (bidSocket) {
+            bidSocket.close();
+        }
+    }
+    
+    function showBidNotification(bid) {
+        const notification = document.createElement('div');
+        notification.className = 'live-bid-notification';
+        notification.innerHTML = `
+            <div class="notification-header">
+                <span class="notification-title">New Bid!</span>
+                <button class="notification-close">×</button>
+            </div>
+            <div class="notification-content">
+                ${bid.user} placed a bid of ₹${parseFloat(bid.amount).toFixed(2)}
+            </div>
         `;
-        return;
+        document.body.appendChild(notification);
+        
+        // Slight delay before showing for animation effect
+        setTimeout(() => {
+            notification.className = 'live-bid-notification show';
+        }, 100);
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => {
+            notification.className = 'live-bid-notification';
+            setTimeout(() => {
+                notification.remove();
+            }, 300); // Wait for fade-out animation
+        }, 5000);
+        
+        // Handle manual close
+        notification.querySelector('.notification-close').addEventListener('click', () => {
+            notification.className = 'live-bid-notification';
+            setTimeout(() => {
+                notification.remove();
+            }, 300); // Wait for fade-out animation
+        });
     }
 
-    if (now < auctionStart) {
-        const auctionStartElement = document.getElementById('auction-start-date');
-        if (auctionStartElement) {
-            console.log('Starting auction start countdown');
-            updateAuctionStartCountdown();
-            auctionStartCountdown = setInterval(updateAuctionStartCountdown, 1000);
-        } else {
-            console.error('Auction start date element not found');
+    function setupImageGallery() {
+        const thumbnails = document.querySelectorAll('.thumbnail');
+        const mainImage = document.querySelector('#main-image');
+        
+        thumbnails.forEach(thumbnail => {
+            thumbnail.addEventListener('click', function() {
+                mainImage.src = this.getAttribute('data-src');
+                thumbnails.forEach(t => t.classList.remove('active'));
+                this.classList.add('active');
+            });
+        });
+    }
+    
+    function updateCountdown(targetDate, daysId, hoursId, minutesId, secondsId, isStartCountdown, callback) {
+        const target = new Date(targetDate);
+        if (isNaN(target.getTime())) {
+            console.error('Invalid target date:', targetDate);
+            document.querySelector('.auction-countdown-timer').innerHTML = `
+                <div class="countdown-error">Error: Invalid auction time</div>
+            `;
+            return;
         }
-    } else if (now >= auctionStart && now < auctionEnd) {
-        console.log('Starting auction end countdown and WebSocket');
-        setupWebSocket();
-        const auctionEndElement = document.getElementById('auction-end-date');
-        if (auctionEndElement) {
-            updateAuctionEndCountdown();
-            auctionEndCountdown = setInterval(updateAuctionEndCountdown, 1000);
+
+        const now = new Date();
+        const diff = target - now;
+
+        console.log(`Countdown: target=${target}, now=${now}, diff=${diff}ms`);
+
+        if (diff <= 0) {
+            console.log('Countdown reached zero, triggering callback');
+            if (!hasReloaded) {
+                hasReloaded = true;
+                if (callback) callback();
+            }
+            return;
+        }
+
+        const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+        const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+        const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+
+        console.log(`Updating countdown: ${days}d ${hours}h ${minutes}m ${seconds}s`);
+
+        const daysElement = document.getElementById(daysId);
+        const hoursElement = document.getElementById(hoursId);
+        const minutesElement = document.getElementById(minutesId);
+        const secondsElement = document.getElementById(secondsId);
+
+        if (daysElement && hoursElement && minutesElement && secondsElement) {
+            daysElement.textContent = days;
+            hoursElement.textContent = hours.toString().padStart(2, '0');
+            minutesElement.textContent = minutes.toString().padStart(2, '0');
+            secondsElement.textContent = seconds.toString().padStart(2, '0');
         } else {
+            console.error('Countdown elements not found:', { daysId, hoursId, minutesId, secondsId });
+        }
+
+        // Update progress bar
+        const auctionStart = new Date("{{ luxury_shoe.auction_start|date:'c' }}");
+        const totalDuration = (target - auctionStart) / 1000; // Total auction duration in seconds
+        const timeRemaining = diff / 1000; // Remaining time in seconds
+        const progressPercentage = (timeRemaining / totalDuration) * 100;
+
+        const timerProgress = document.querySelector('.timer-progress');
+        const timerText = document.querySelector('.timer-text');
+        if (timerProgress && timerText) {
+            timerProgress.style.width = `${progressPercentage}%`;
+            timerText.textContent = `Time remaining: ${days}d ${hours}h ${minutes}m ${seconds}s`;
+        }
+    }
+
+    function updateAuctionEndCountdown() {
+        const endDateElement = document.getElementById('auction-end-date');
+        if (!endDateElement) {
             console.error('Auction end date element not found');
+            return;
         }
-    } else {
-        console.log('Auction has ended, no countdown needed');
+        
+        const endDate = endDateElement.getAttribute('data-end-time');
+        updateCountdown(endDate, 'countdown-days', 'countdown-hours', 'countdown-minutes', 'countdown-seconds', false, () => {
+            console.log('Auction end countdown finished, reloading page');
+            location.reload();
+        });
     }
 
-    setupImageGallery();
-});
+    function updateAuctionStartCountdown() {
+        const startDateElement = document.getElementById('auction-start-date');
+        if (!startDateElement) {
+            console.error('Auction start date element not found');
+            return;
+        }
+        
+        const startDate = startDateElement.getAttribute('data-start-time');
+        updateCountdown(startDate, 'countdown-days', 'countdown-hours', 'countdown-minutes', 'countdown-seconds', true, () => {
+            console.log('Auction start countdown finished, reloading page');
+            location.reload();
+        });
+    }
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        const now = new Date();
+        const auctionStart = new Date("{{ luxury_shoe.auction_start|date:'c' }}");
+        const auctionEnd = new Date("{{ luxury_shoe.auction_end|date:'c' }}");
+        
+        console.log('Auction times:', {
+            now: now.toISOString(),
+            auctionStart: auctionStart.toISOString(),
+            auctionEnd: auctionEnd.toISOString()
+        });
+
+        if (isNaN(auctionStart.getTime()) || isNaN(auctionEnd.getTime())) {
+            console.error('Invalid auction start or end time');
+            document.querySelector('.auction-countdown-timer').innerHTML = `
+                <div class="countdown-error">Error: Invalid auction time</div>
+            `;
+            return;
+        }
+
+        if (now < auctionStart) {
+            const auctionStartElement = document.getElementById('auction-start-date');
+            if (auctionStartElement) {
+                console.log('Starting auction start countdown');
+                updateAuctionStartCountdown();
+                auctionStartCountdown = setInterval(updateAuctionStartCountdown, 1000);
+            } else {
+                console.error('Auction start date element not found');
+            }
+        } else if (now >= auctionStart && now < auctionEnd) {
+            console.log('Starting auction end countdown and WebSocket');
+            setupWebSocket();
+            const auctionEndElement = document.getElementById('auction-end-date');
+            if (auctionEndElement) {
+                updateAuctionEndCountdown();
+                auctionEndCountdown = setInterval(updateAuctionEndCountdown, 1000);
+            } else {
+                console.error('Auction end date element not found');
+            }
+        } else {
+            console.log('Auction has ended, no countdown needed');
+        }
+        
+        setupImageGallery();
+    });
 </script>
 {% endblock %}
 
