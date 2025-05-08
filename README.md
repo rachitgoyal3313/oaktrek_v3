@@ -1,4 +1,3 @@
----
 
 ## 🛍️ Oaktrek – E-Commerce Shoe Store
 
@@ -125,10 +124,10 @@ DEBUG=True
 
 ### 👥 Team
 
-- **Rachit Goyal** – Project Lead & Full Stack Developer
-- **Divyansh Chawla** – Full Stack Developer
-- **Pushkar Sharma** – BackEnd Developer
-- **Pawani** – Frontend Developer
+- **Rachit Goyal** – Project Lead & Full Stack Developer ([GitHub](https://github.com/rachitgoyal3313/))
+- **Divyansh Chawla** – Full Stack Developer ([GitHub](https://github.com/Divy13ansh))
+- **Pushkar Sharma** – BackEnd Developer ([GitHub](https://github.com/PushkarSharma18))
+- **Pawani** – Frontend Developer ([GitHub](https://github.com/Pawani-29))
 
 ---
 
