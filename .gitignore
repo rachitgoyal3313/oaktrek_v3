@@ -5,3 +5,5 @@ oaktrek_deployment\.env
 .env
 oaktrek_django\django_error.log
 django_error.log
+__pycache__/
+*.pyc
