@@ -28,7 +28,7 @@ SECRET_KEY = 'django-insecure-%0o=-fj%1o7dl--0(cnl18@%_*a&0okoz+%bjat&=u9wln*q!j
 DEBUG = True
 ALLOWED_HOSTS = ['*']  # Allow all hosts (not recommended for production)
 
-CSRF_TRUSTED_ORIGINS = ['https://aed4-2409-40d1-15-4f33-e0b3-667a-8132-cd04.ngrok-free.app', 'https://rachitgoyell.pythonanywhere.com', 'http://localhost:8000', 'https://localhost:8000', 'http://127.0.0.1:8000', 'https://127.0.0.1:8000', 'https://9310-2409-40d1-c-4253-9d7c-d9b8-758a-cd1.ngrok-free.app']
+CSRF_TRUSTED_ORIGINS = ['https://oaktrekdeployment-production.up.railway.app', 'https://aed4-2409-40d1-15-4f33-e0b3-667a-8132-cd04.ngrok-free.app', 'https://rachitgoyell.pythonanywhere.com', 'http://localhost:8000', 'https://localhost:8000', 'http://127.0.0.1:8000', 'https://127.0.0.1:8000', 'https://9310-2409-40d1-c-4253-9d7c-d9b8-758a-cd1.ngrok-free.app']
 
 # Application definition
 

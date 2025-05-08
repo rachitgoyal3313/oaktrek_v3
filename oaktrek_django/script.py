@@ -7,7 +7,7 @@ django.setup()
 
 from Store.models import Product
 
-media_dir = r'C:\Users\goyal\Desktop\oaktrek v2_2\oaktrek_v2\media\assets\products'
+media_dir = r'C:\Users\goyal\Desktop\oakterk_final\oaktrek_v3\oaktrek_django\media\assets\products'
 image_files = set(os.listdir(media_dir))
 
 for product in Product.objects.all():
