@@ -64,14 +64,14 @@ def get_inventory_summary():
             categories[category[0]] = {
                 'product_count': category_products.count(),
                 'total_items': sum(p.stock_quantity for p in category_products),
-                'total_value': sum(p.stock_quantity * 100 for p in category_products) # Assuming fixed value per item
+                'total_value': sum(p.stock_quantity * 1000 for p in category_products) # Assuming fixed value per item
             }
         
         summary = {
             'overall': {
                 'product_count': total_products,
                 'total_items': total_items,
-                'total_value': sum(p.stock_quantity * 100 for p in products)
+                'total_value': sum(p.stock_quantity * 10000 for p in products)
             },
             'categories': categories
         }
@@ -289,7 +289,6 @@ class AddProduct(Resource):
             logger.error(f"Invalid product add request: {str(e)}")
             return {'error': 'Invalid product_id or stock_quantity'}, 400
 
-# Register API resources
 api.add_resource(UpdateStock, '/api/inventory/update-stock/<int:product_id>')
 api.add_resource(AddProduct, '/api/inventory/add-product')
 
