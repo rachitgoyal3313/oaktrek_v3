@@ -27633,3 +27633,5 @@ Traceback (most recent call last):
 django.template.exceptions.TemplateSyntaxError: Could not parse the remainder: ' *100' from 'summary.overall.total_value *100'
 "GET /inventory/dashboard/ HTTP/1.1" 500 295781
 "GET /inventory/dashboard/ HTTP/1.1" 500 295781
+Error fetching inventory summary from Flask API: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/inventory/summary (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000029749A546E0>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))
+Error fetching analytics from Flask API: HTTPConnectionPool(host='localhost', port=5000): Max retries exceeded with url: /api/inventory/analytics (Caused by NewConnectionError('<urllib3.connection.HTTPConnection object at 0x0000029749B08920>: Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it'))
